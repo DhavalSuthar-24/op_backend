@@ -7,35 +7,297 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+model User {
+  id               String         @id @default(uuid())
+  name             String
+  username         String         @unique
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  
+  // Relations
+  progress         UserProgress[]
+  quizResults      QuizResult[]
+  sessions         UserSession[]
+  streak           LearningStreak?
+  badges           UserBadge[]
+  
+  @@index([username])
+}
+
+// Update UserProgress to reference User
+model UserProgress {
+  id           String   @id @default(uuid())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  word         Word     @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  wordId       String
+  isLearned    Boolean  @default(false)
+  reviewCount  Int      @default(0)
+  lastReviewed DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, wordId])
+  @@index([userId])
+}
+
+// Update QuizResult to reference User
+model QuizResult {
+  id          String   @id @default(uuid())
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  answers     String // JSON array of user answers
+  score       Int
+  completedAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Update UserSession to reference User
+model UserSession {
+  id           String   @id @default(uuid())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String
+  sessionType  String // study, quiz, reading, etc.
+  duration     Int // in seconds
+  wordsLearned Int      @default(0)
+  score        Int?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// Update LearningStreak to reference User
+model LearningStreak {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String   @unique
+  currentDays Int      @default(0)
+  longestDays Int      @default(0)
+  lastActive  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Update UserBadge to reference User
+model UserBadge {
+  id          String   @id @default(uuid())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  badgeType   String // vocabulary_master, quiz_champion, streak_keeper, etc.
+  title       String
+  description String
+  icon        String?
+  earnedAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
 model Word {
-  id            String    @id @default(uuid())
-  text          String    @unique
-  meaningHindi  String
-  meaningGujarati String
-  synonyms      Synonym[]
-  antonyms      Antonym[]
-  sentences     Sentence[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id               String         @id @default(uuid())
+  text             String         @unique
+  meaningHindi     String
+  meaningGujarati  String
+  pronunciation    String?
+  partOfSpeech     String?
+  difficulty       String         @default("intermediate") // beginner, intermediate, advanced
+  category         String         @default("general") // academic, business, technology, etc.
+  etymology        String?
+  mnemonicTrick    String?
+  commonMistakes   String? // JSON array
+  relatedWords     String? // JSON array
+  isWordOfTheDay   Boolean        @default(false)
+  synonyms         Synonym[]
+  antonyms         Antonym[]
+  sentences        Sentence[]
+  userProgress     UserProgress[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([difficulty])
+  @@index([category])
+  @@index([createdAt])
 }
 
 model Synonym {
-  id      String @id @default(uuid())
-  word    Word   @relation(fields: [wordId], references: [id])
-  wordId  String
-  text    String
+  id     String @id @default(uuid())
+  word   Word   @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  wordId String
+  text   String
 }
 
 model Antonym {
-  id      String @id @default(uuid())
-  word    Word   @relation(fields: [wordId], references: [id])
-  wordId  String
-  text    String
+  id     String @id @default(uuid())
+  word   Word   @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  wordId String
+  text   String
 }
 
 model Sentence {
-  id      String @id @default(uuid())
-  word    Word   @relation(fields: [wordId], references: [id])
-  wordId  String
-  text    String
+  id         String @id @default(uuid())
+  word       Word   @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  wordId     String
+  text       String
+  difficulty String @default("intermediate")
 }
+
+
+model Quiz {
+  id         String       @id @default(uuid())
+  type       String // multiple-choice, fill-in-blank, synonym-match, etc.
+  difficulty String
+  questions  String // JSON array of questions
+  results    QuizResult[]
+  createdAt  DateTime     @default(now())
+}
+
+
+
+model DailyQuote {
+  id                  String   @id @default(uuid())
+  quote               String
+  author              String
+  hindiTranslation    String?
+  gujaratiTranslation String?
+  explanation         String?
+  relevanceToLearning String?
+  createdAt           DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model FactOfTheDay {
+  id                  String   @id @default(uuid())
+  fact                String
+  topic               String
+  hindiTranslation    String?
+  gujaratiTranslation String?
+  explanation         String?
+  didYouKnow          String?
+  source              String?
+  createdAt           DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([topic])
+}
+
+model Story {
+  id                     String   @id @default(uuid())
+  title                  String
+  content                String
+  theme                  String
+  difficulty             String
+  moralLesson            String?
+  vocabularyHighlights   String? // JSON array
+  comprehensionQuestions String? // JSON array
+  hindiSummary           String?
+  gujaratiSummary        String?
+  createdAt              DateTime @default(now())
+
+  @@index([difficulty])
+  @@index([theme])
+}
+
+model GrammarLesson {
+  id                   String   @id @default(uuid())
+  title                String
+  topic                String
+  difficulty           String
+  explanation          String
+  rules                String? // JSON array
+  examples             String? // JSON array
+  commonMistakes       String? // JSON array
+  practiceExercises    String? // JSON array
+  tips                 String? // JSON array
+  hindiExplanation     String?
+  gujaratiExplanation  String?
+  createdAt            DateTime @default(now())
+
+  @@index([topic])
+  @@index([difficulty])
+}
+
+model PronunciationGuide {
+  id               String   @id @default(uuid())
+  word             String   @unique
+  ipa              String? // International Phonetic Alphabet
+  syllables        String?
+  stress           String?
+  soundTips        String? // JSON array
+  similarSounds    String? // JSON array
+  commonErrors     String? // JSON array
+  practicePhrase   String?
+  audioDescription String?
+  createdAt        DateTime @default(now())
+}
+
+model Idiom {
+  id                  String   @id @default(uuid())
+  text                String   @unique
+  meaning             String
+  hindiTranslation    String?
+  gujaratiTranslation String?
+  examples            String? // JSON array
+  origin              String?
+  difficulty          String   @default("intermediate")
+  category            String   @default("general")
+  createdAt           DateTime @default(now())
+
+  @@index([difficulty])
+  @@index([category])
+}
+
+model ConversationTopic {
+  id            String   @id @default(uuid())
+  title         String
+  difficulty    String
+  questions     String // JSON array
+  vocabulary    String? // JSON array
+  culturalTips  String?
+  scenarios     String? // JSON array
+  createdAt     DateTime @default(now())
+
+  @@index([difficulty])
+}
+
+
+
+model WordChallenge {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  words       String // JSON array of word IDs
+  difficulty  String
+  reward      String?
+  isActive    Boolean  @default(true)
+  startDate   DateTime
+  endDate     DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([isActive])
+  @@index([difficulty])
+}
+
+
+model NewsArticle {
+  id                  String   @id @default(uuid())
+  title               String
+  content             String
+  difficulty          String
+  category            String // world, science, technology, etc.
+  source              String?
+  vocabularyWords     String? // JSON array
+  comprehensionQuiz   String? // JSON array
+  hindiSummary        String?
+  gujaratiSummary     String?
+  publishedAt         DateTime
+  createdAt           DateTime @default(now())
+
+  @@index([difficulty])
+  @@index([category])
+  @@index([publishedAt])
+}
+
+
