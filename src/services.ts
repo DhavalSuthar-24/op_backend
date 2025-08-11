@@ -6,11 +6,19 @@ const prisma = new PrismaClient();
 
 // Groq models configuration
 const GROQ_MODELS = {
-  main: "meta-llama/llama-3.1-8b-instant",
-  creative: "meta-llama/llama-3.1-70b-versatile", 
+  main: "llama-3.1-8b-instant",
+  creative: "llama-3.1-70b-versatile", 
   fast: "gemma-7b-it",
-  advanced: "meta-llama/llama-3.2-90b-text-preview"
+  advanced: "openai/gpt-oss-120b"
 };
+
+function extractJsonArray(str) {
+  const match = str.match(/\[\s*{[\s\S]*}\s*\]/);
+  if (match) {
+    return match[0];
+  }
+  throw new Error("No valid JSON array found in response");
+}
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -25,13 +33,15 @@ export const generateAndStoreWords = async (count: number = 15): Promise<void> =
 
     const response = await groq.chat.completions.create({
       messages: [
-        {
-          role: "system",
-          content: "You are an expert English vocabulary teacher. Generate diverse, useful vocabulary words with detailed information."
-        },
+     {
+  role: "system",
+  content: `You are an expert English vocabulary teacher.
+Return only valid JSON with no explanations, no code fences, and no extra text.
+If you cannot provide JSON, return an empty JSON array "[]".`
+},
         {
           role: "user",
-          content: `Generate ${count} English vocabulary words for ${randomDifficulty} level learners in the ${randomCategory} category. 
+          content: `Generate ${count}  English vocabulary words for ${randomDifficulty} level learners in the ${randomCategory} category. 
           
           For each word, provide:
           - text: the English word

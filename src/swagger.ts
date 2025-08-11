@@ -1,3 +1,50 @@
+// Get dynamic base URL based on environment
+const getBaseUrl = (): string => {
+  // Check if running on Vercel
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  
+  // Check for custom deployment URL
+  if (process.env.DEPLOYMENT_URL) {
+    return process.env.DEPLOYMENT_URL;
+  }
+  
+  // Check for Next.js environment variables
+  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+    return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+  }
+  
+  // Production environment check
+  if (process.env.NODE_ENV === 'production' && process.env.PRODUCTION_URL) {
+    return process.env.PRODUCTION_URL;
+  }
+  
+  // Default to localhost for development
+  return process.env.PORT ? `http://localhost:${process.env.PORT}` : 'http://localhost:3001';
+};
+
+// Get multiple server configurations
+const getServers = () => {
+  const baseUrl = getBaseUrl();
+  const servers = [
+    {
+      url: baseUrl,
+      description: process.env.NODE_ENV === 'production' ? 'Production server' : 'Development server'
+    }
+  ];
+
+  // Add additional servers if needed
+  if (process.env.NODE_ENV === 'development') {
+    servers.push({
+      url: 'http://localhost:3001',
+      description: 'Local development server'
+    });
+  }
+
+  return servers;
+};
+
 export const swaggerDocument = {
   openapi: "3.0.0",
   info: {
@@ -7,19 +54,19 @@ export const swaggerDocument = {
     contact: {
       name: "API Support",
       email: "support@englishlearning.com"
+    },
+    license: {
+      name: "MIT",
+      url: "https://opensource.org/licenses/MIT"
     }
   },
-  servers: [
-    {
-      url: "http://localhost:3001",
-      description: "Development server"
-    }
-  ],
+  servers: getServers(),
   paths: {
     "/": {
       get: {
         summary: "API Information",
         description: "Get basic API information and available endpoints",
+        tags: ["General"],
         responses: {
           "200": {
             description: "API information",
@@ -42,10 +89,207 @@ export const swaggerDocument = {
         }
       }
     },
+    "/auth/register": {
+      post: {
+        summary: "Register User",
+        description: "Create a new user account",
+        tags: ["Authentication"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["name", "email", "password"],
+                properties: {
+                  name: { type: "string", minLength: 2, maxLength: 50 },
+                  email: { type: "string", format: "email" },
+                  password: { type: "string", minLength: 6, maxLength: 100 }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          "200": {
+            description: "User registered successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    token: { type: "string" },
+                    user: { $ref: "#/components/schemas/UserResponse" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            description: "Invalid input data",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "409": {
+            description: "Email already exists",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      post: {
+        summary: "Login User",
+        description: "Authenticate user and get access token",
+        tags: ["Authentication"],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["email", "password"],
+                properties: {
+                  email: { type: "string", format: "email" },
+                  password: { type: "string" }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          "200": {
+            description: "Login successful",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    token: { type: "string" },
+                    user: { $ref: "#/components/schemas/UserResponse" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            description: "Invalid input",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            description: "Invalid credentials",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/profile": {
+      get: {
+        summary: "Get User Profile",
+        description: "Get authenticated user's profile information",
+        tags: ["Authentication"],
+        security: [{ BearerAuth: [] }],
+        responses: {
+          "200": {
+            description: "User profile",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    user: { $ref: "#/components/schemas/UserProfile" }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      },
+      put: {
+        summary: "Update User Profile",
+        description: "Update authenticated user's profile information",
+        tags: ["Authentication"],
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["name"],
+                properties: {
+                  name: { type: "string", minLength: 2, maxLength: 50 }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          "200": {
+            description: "Profile updated successfully",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    user: { $ref: "#/components/schemas/UserResponse" },
+                    message: { type: "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            description: "Invalid input",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/words": {
       get: {
         summary: "Get Vocabulary Words",
         description: "Retrieve paginated list of vocabulary words with filters",
+        tags: ["Words"],
         parameters: [
           {
             name: "cursor",
@@ -57,7 +301,7 @@ export const swaggerDocument = {
             name: "limit",
             in: "query",
             description: "Number of words to return (max 100)",
-            schema: { type: "integer", maximum: 100, default: 20 }
+            schema: { type: "integer", minimum: 1, maximum: 100, default: 20 }
           },
           {
             name: "difficulty",
@@ -90,6 +334,14 @@ export const swaggerDocument = {
                 }
               }
             }
+          },
+          "500": {
+            description: "Server error",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -98,13 +350,14 @@ export const swaggerDocument = {
       get: {
         summary: "Search Words",
         description: "Search vocabulary words by text, meaning, or synonyms",
+        tags: ["Words"],
         parameters: [
           {
             name: "q",
             in: "query",
             required: true,
             description: "Search query",
-            schema: { type: "string" }
+            schema: { type: "string", minLength: 1 }
           }
         ],
         responses: {
@@ -125,7 +378,12 @@ export const swaggerDocument = {
             }
           },
           "400": {
-            description: "Missing query parameter"
+            description: "Missing query parameter",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -134,6 +392,7 @@ export const swaggerDocument = {
       get: {
         summary: "Get Word by ID",
         description: "Get detailed information about a specific word",
+        tags: ["Words"],
         parameters: [
           {
             name: "id",
@@ -158,7 +417,12 @@ export const swaggerDocument = {
             }
           },
           "404": {
-            description: "Word not found"
+            description: "Word not found",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -166,7 +430,9 @@ export const swaggerDocument = {
     "/words/{id}/learned": {
       post: {
         summary: "Mark Word as Learned",
-        description: "Mark a word as learned for a user",
+        description: "Mark a word as learned for the authenticated user",
+        tags: ["Words"],
+        security: [{ BearerAuth: [] }],
         parameters: [
           {
             name: "id",
@@ -182,10 +448,7 @@ export const swaggerDocument = {
             "application/json": {
               schema: {
                 type: "object",
-                required: ["userId"],
-                properties: {
-                  userId: { type: "string" }
-                }
+                properties: {}
               }
             }
           }
@@ -198,14 +461,20 @@ export const swaggerDocument = {
                 schema: {
                   type: "object",
                   properties: {
-                    message: { type: "string" }
+                    message: { type: "string" },
+                    success: { type: "boolean" }
                   }
                 }
               }
             }
           },
-          "400": {
-            description: "Invalid request"
+          "401": {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -214,6 +483,7 @@ export const swaggerDocument = {
       post: {
         summary: "Generate Quiz",
         description: "Generate interactive quiz based on type and difficulty",
+        tags: ["Quiz"],
         requestBody: {
           required: true,
           content: {
@@ -234,7 +504,7 @@ export const swaggerDocument = {
                   count: {
                     type: "integer",
                     minimum: 5,
-                    maximum: 20,
+                    maximum: 50,
                     default: 10
                   }
                 }
@@ -257,7 +527,12 @@ export const swaggerDocument = {
             }
           },
           "400": {
-            description: "Invalid request"
+            description: "Invalid request",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -266,6 +541,8 @@ export const swaggerDocument = {
       post: {
         summary: "Submit Quiz Answers",
         description: "Submit quiz answers and get score",
+        tags: ["Quiz"],
+        security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
           content: {
@@ -285,7 +562,6 @@ export const swaggerDocument = {
                       }
                     }
                   },
-                  userId: { type: "string" },
                   quizId: { type: "string" }
                 }
               }
@@ -300,14 +576,28 @@ export const swaggerDocument = {
                 schema: {
                   type: "object",
                   properties: {
-                    data: { $ref: "#/components/schemas/QuizResult" }
+                    data: { $ref: "#/components/schemas/QuizResult" },
+                    success: { type: "boolean" }
                   }
                 }
               }
             }
           },
           "400": {
-            description: "Invalid request"
+            description: "Invalid request",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "401": {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -316,6 +606,7 @@ export const swaggerDocument = {
       get: {
         summary: "Get Daily Quote",
         description: "Retrieve today's inspirational quote",
+        tags: ["Daily Content"],
         responses: {
           "200": {
             description: "Daily quote",
@@ -337,6 +628,7 @@ export const swaggerDocument = {
       get: {
         summary: "Get Fact of the Day",
         description: "Retrieve today's educational fact",
+        tags: ["Daily Content"],
         responses: {
           "200": {
             description: "Fact of the day",
@@ -358,6 +650,7 @@ export const swaggerDocument = {
       get: {
         summary: "Get Word of the Day",
         description: "Retrieve today's featured word",
+        tags: ["Daily Content"],
         responses: {
           "200": {
             description: "Word of the day",
@@ -379,6 +672,7 @@ export const swaggerDocument = {
       post: {
         summary: "Generate Story",
         description: "Generate educational story with vocabulary words",
+        tags: ["Stories"],
         requestBody: {
           required: false,
           content: {
@@ -426,6 +720,7 @@ export const swaggerDocument = {
       get: {
         summary: "Get Stories",
         description: "Get list of saved stories",
+        tags: ["Stories"],
         responses: {
           "200": {
             description: "List of stories",
@@ -450,6 +745,7 @@ export const swaggerDocument = {
       post: {
         summary: "Generate Grammar Lesson",
         description: "Create comprehensive grammar lesson on specific topic",
+        tags: ["Grammar"],
         requestBody: {
           required: true,
           content: {
@@ -487,7 +783,12 @@ export const swaggerDocument = {
             }
           },
           "400": {
-            description: "Invalid request"
+            description: "Invalid request",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
           }
         }
       }
@@ -496,6 +797,7 @@ export const swaggerDocument = {
       get: {
         summary: "Get Grammar Topics",
         description: "Get list of available grammar topics",
+        tags: ["Grammar"],
         responses: {
           "200": {
             description: "List of grammar topics",
@@ -520,6 +822,7 @@ export const swaggerDocument = {
       post: {
         summary: "Generate Pronunciation Guide",
         description: "Generate pronunciation guide for a specific word",
+        tags: ["Pronunciation"],
         requestBody: {
           required: true,
           content: {
@@ -552,24 +855,22 @@ export const swaggerDocument = {
             }
           },
           "400": {
-            description: "Invalid request"
+            description: "Invalid request",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
           }
         }
       }
     },
-    "/progress/{userId}": {
+    "/progress": {
       get: {
         summary: "Get User Progress",
-        description: "Get learning progress for a specific user",
-        parameters: [
-          {
-            name: "userId",
-            in: "path",
-            required: true,
-            description: "User ID",
-            schema: { type: "string" }
-          }
-        ],
+        description: "Get learning progress for the authenticated user",
+        tags: ["Progress"],
+        security: [{ BearerAuth: [] }],
         responses: {
           "200": {
             description: "User progress",
@@ -587,9 +888,56 @@ export const swaggerDocument = {
                         },
                         stats: { $ref: "#/components/schemas/UserStats" }
                       }
-                    }
+                    },
+                    success: { type: "boolean" }
                   }
                 }
+              }
+            }
+          },
+          "401": {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/widget/word/next": {
+      get: {
+        summary: "Get Next Word for Widget",
+        description: "Get next word for widget display",
+        tags: ["Widget"],
+        parameters: [
+          {
+            name: "userId",
+            in: "query",
+            description: "User ID (optional)",
+            schema: { type: "string" }
+          }
+        ],
+        responses: {
+          "200": {
+            description: "Next word for widget",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    data: { $ref: "#/components/schemas/Word" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            description: "No word available",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
               }
             }
           }
@@ -600,6 +948,8 @@ export const swaggerDocument = {
       post: {
         summary: "Generate Words (Admin)",
         description: "Manually trigger word generation",
+        tags: ["Admin"],
+        security: [{ BearerAuth: [] }],
         responses: {
           "200": {
             description: "Words generated",
@@ -608,9 +958,18 @@ export const swaggerDocument = {
                 schema: {
                   type: "object",
                   properties: {
-                    message: { type: "string" }
+                    message: { type: "string" },
+                    success: { type: "boolean" }
                   }
                 }
+              }
+            }
+          },
+          "401": {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
               }
             }
           }
@@ -621,6 +980,8 @@ export const swaggerDocument = {
       post: {
         summary: "Generate Daily Content (Admin)",
         description: "Manually trigger daily content generation",
+        tags: ["Admin"],
+        security: [{ BearerAuth: [] }],
         responses: {
           "200": {
             description: "Daily content generated",
@@ -629,9 +990,18 @@ export const swaggerDocument = {
                 schema: {
                   type: "object",
                   properties: {
-                    message: { type: "string" }
+                    message: { type: "string" },
+                    success: { type: "boolean" }
                   }
                 }
+              }
+            }
+          },
+          "401": {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
               }
             }
           }
@@ -642,6 +1012,8 @@ export const swaggerDocument = {
       get: {
         summary: "Get API Statistics (Admin)",
         description: "Get comprehensive API usage statistics",
+        tags: ["Admin"],
+        security: [{ BearerAuth: [] }],
         responses: {
           "200": {
             description: "API statistics",
@@ -650,9 +1022,18 @@ export const swaggerDocument = {
                 schema: {
                   type: "object",
                   properties: {
+                    success: { type: "boolean" },
                     data: { $ref: "#/components/schemas/ApiStats" }
                   }
                 }
+              }
+            }
+          },
+          "401": {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/ErrorResponse" }
               }
             }
           }
@@ -661,7 +1042,69 @@ export const swaggerDocument = {
     }
   },
   components: {
+    securitySchemes: {
+      BearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+        description: "Enter your JWT token"
+      }
+    },
     schemas: {
+      ErrorResponse: {
+        type: "object",
+        properties: {
+          error: { type: "string" },
+          success: { type: "boolean", default: false }
+        }
+      },
+      UserResponse: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+          email: { type: "string" },
+          username: { type: "string" },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" }
+        }
+      },
+      UserProfile: {
+        allOf: [
+          { $ref: "#/components/schemas/UserResponse" },
+          {
+            type: "object",
+            properties: {
+              stats: {
+                type: "object",
+                properties: {
+                  wordsLearned: { type: "integer" },
+                  totalBadges: { type: "integer" },
+                  quizzesCompleted: { type: "integer" },
+                  currentStreak: { type: "integer" },
+                  longestStreak: { type: "integer" },
+                  memberSince: { type: "string", format: "date-time" }
+                }
+              },
+              recentBadges: {
+                type: "array",
+                items: { $ref: "#/components/schemas/UserBadge" }
+              }
+            }
+          }
+        ]
+      },
+      UserBadge: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          badgeType: { type: "string" },
+          title: { type: "string" },
+          description: { type: "string" },
+          icon: { type: "string", nullable: true },
+          earnedAt: { type: "string", format: "date-time" }
+        }
+      },
       Word: {
         type: "object",
         properties: {
@@ -910,36 +1353,62 @@ export const swaggerDocument = {
   },
   tags: [
     {
+      name: "General",
+      description: "General API information"
+    },
+    {
+      name: "Authentication",
+      description: "User authentication and profile management"
+    },
+    {
       name: "Words",
-      description: "Vocabulary management"
+      description: "Vocabulary management and word operations"
     },
     {
       name: "Quiz",
-      description: "Interactive quizzes"
+      description: "Interactive quizzes and assessments"
     },
     {
       name: "Daily Content",
-      description: "Daily quotes, facts, and words"
+      description: "Daily quotes, facts, and featured words"
     },
     {
       name: "Stories",
-      description: "Educational stories"
+      description: "Educational stories with vocabulary integration"
     },
     {
       name: "Grammar",
-      description: "Grammar lessons"
+      description: "Grammar lessons and topics"
     },
     {
       name: "Pronunciation",
-      description: "Pronunciation guides"
+      description: "Pronunciation guides and phonetics"
     },
     {
       name: "Progress",
-      description: "User progress tracking"
+      description: "User progress tracking and statistics"
+    },
+    {
+      name: "Widget",
+      description: "Widget endpoints for external integrations"
     },
     {
       name: "Admin",
-      description: "Administrative functions"
+      description: "Administrative functions and system management"
     }
   ]
 };
+
+// Export additional utility functions for dynamic configuration
+export const getApiBaseUrl = getBaseUrl;
+export const getApiServers = getServers;
+
+// Helper function to get environment-specific configuration
+export const getSwaggerConfig = () => ({
+  ...swaggerDocument,
+  servers: getServers(),
+  info: {
+    ...swaggerDocument.info,
+    description: `${swaggerDocument.info.description} - Environment: ${process.env.NODE_ENV || 'development'}`
+  }
+});
