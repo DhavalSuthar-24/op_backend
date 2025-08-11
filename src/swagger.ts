@@ -1,32 +1,18 @@
 // Get dynamic base URL based on environment
 const getBaseUrl = (): string => {
-  // Check if running on Vercel
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  
-  // Check for custom deployment URL
-  if (process.env.DEPLOYMENT_URL) {
-    return process.env.DEPLOYMENT_URL;
-  }
-  
-  // Check for Next.js environment variables
-  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-    return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
-  }
-  
-  // Production environment check
+
+
   if (process.env.NODE_ENV === 'production' && process.env.PRODUCTION_URL) {
     return process.env.PRODUCTION_URL;
   }
-  
-  // Default to localhost for development
+
   return process.env.PORT ? `http://localhost:${process.env.PORT}` : 'http://localhost:3001';
 };
 
 // Get multiple server configurations
 const getServers = () => {
   const baseUrl = getBaseUrl();
+  console.log(baseUrl,"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
   const servers = [
     {
       url: baseUrl,
