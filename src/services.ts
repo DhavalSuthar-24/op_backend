@@ -12,7 +12,7 @@ const GROQ_MODELS = {
   advanced: "openai/gpt-oss-120b"
 };
 
-function extractJsonArray(str) {
+function extractJsonArray(str:string) {
   const match = str.match(/\[\s*{[\s\S]*}\s*\]/);
   if (match) {
     return match[0];
