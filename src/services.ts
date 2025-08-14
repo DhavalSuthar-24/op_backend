@@ -7,12 +7,12 @@ const prisma = new PrismaClient();
 // Groq models configuration
 const GROQ_MODELS = {
   main: "llama-3.1-8b-instant",
-  creative: "llama-3.1-70b-versatile", 
+  creative: "llama-3.1-70b-versatile",
   fast: "gemma-7b-it",
-  advanced: "openai/gpt-oss-120b"
+  advanced: "openai/gpt-oss-120b",
 };
 
-function extractJsonArray(str:string) {
+function extractJsonArray(str: string) {
   const match = str.match(/\[\s*{[\s\S]*}\s*\]/);
   if (match) {
     return match[0];
@@ -23,47 +23,66 @@ function extractJsonArray(str:string) {
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // Enhanced word generation with categories and difficulty levels
-export const generateAndStoreWords = async (count: number = 15): Promise<void> => {
+export const generateAndStoreWords = async (
+  count: number = 15
+): Promise<void> => {
   try {
-    const categories = ["academic", "business", "technology", "science", "literature", "casual"];
-    const difficulties = ["beginner", "intermediate", "advanced"];
-    
-    const randomCategory = categories[Math.floor(Math.random() * categories.length)];
-    const randomDifficulty = difficulties[Math.floor(Math.random() * difficulties.length)];
+    // Focused, higher-value categories for serious learners
+    const categories = [
+      "academic",
+      "business",
+      "technology",
+      "science",
+      "literature",
+      "law",
+      "philosophy",
+    ];
+    const randomCategory =
+      categories[Math.floor(Math.random() * categories.length)];
 
     const response = await groq.chat.completions.create({
       messages: [
-     {
-  role: "system",
-  content: `You are an expert English vocabulary teacher.
+        {
+          role: "system",
+          content: `You are an expert English vocabulary teacher.
 Return only valid JSON with no explanations, no code fences, and no extra text.
-If you cannot provide JSON, return an empty JSON array "[]".`
-},
+If you cannot provide JSON, return an empty JSON array "[]".`,
+        },
         {
           role: "user",
-          content: `Generate ${count}  English vocabulary words for ${randomDifficulty} level learners in the ${randomCategory} category. 
-          
-          For each word, provide:
-          - text: the English word
-          - meaningHindi: Hindi translation
-          - meaningGujarati: Gujarati translation  
-          - pronunciation: IPA phonetic notation
-          - partOfSpeech: noun, verb, adjective, etc.
-          - difficulty: beginner/intermediate/advanced
-          - category: ${randomCategory}
-          - etymology: brief word origin
-          - synonyms: array of 3-5 synonyms
-          - antonyms: array of 2-4 antonyms  
-          - sentences: array of 3 example sentences with varying difficulty
-          - mnemonicTrick: memory technique to remember the word
-          - commonMistakes: array of common usage errors
-          - relatedWords: array of related vocabulary
-          
-          Return as JSON array. Make words practical and useful for learning.`,
+          content: `Generate ${count} advanced-level English vocabulary words suitable for a serious learner aiming to reach C1–C2 proficiency.
+
+The words should:
+- Be moderately rare but still actively used in educated writing and speech
+- Avoid overly common/basic words like "happy", "run", "good", "important", etc.
+- Avoid archaic or obsolete terms unless they are still academically relevant
+- Represent a variety of parts of speech
+- Be intellectually engaging and practical for academic, business, or professional communication
+- Be semantically diverse (not synonyms of each other)
+
+Example target difficulty: "pernicious", "cogent", "ubiquitous", "alacrity", "tenuous", "esoteric", "fastidious", "obfuscate".
+
+For each word, provide:
+- text: the English word
+- meaningHindi: Hindi translation
+- meaningGujarati: Gujarati translation  
+- pronunciation: IPA phonetic notation
+- partOfSpeech: noun, verb, adjective, etc.
+- difficulty: advanced
+- category: ${randomCategory}
+- etymology: brief word origin
+- synonyms: array of 3-5 synonyms
+- antonyms: array of 2-4 antonyms  
+- sentences: array of 3 example sentences with increasing complexity
+- mnemonicTrick: memory technique to remember the word
+- commonMistakes: array of common usage errors
+- relatedWords: array of related vocabulary
+
+Return only a valid JSON array. Make the words challenging but practical for mastering advanced English.`,
         },
       ],
       model: GROQ_MODELS.main,
-      temperature: 0.8,
+      temperature: 0.85,
       max_completion_tokens: 4000,
       top_p: 0.9,
     });
@@ -89,12 +108,14 @@ If you cannot provide JSON, return an empty JSON array "[]".`
         sentences,
         mnemonicTrick,
         commonMistakes,
-        relatedWords
+        relatedWords,
       } = wordData;
 
       if (!text) continue;
 
-      const existing = await prisma.word.findUnique({ where: { text: text.toLowerCase() } });
+      const existing = await prisma.word.findUnique({
+        where: { text: text.toLowerCase() },
+      });
       if (existing) continue;
 
       await prisma.$transaction(async (tx) => {
@@ -110,7 +131,7 @@ If you cannot provide JSON, return an empty JSON array "[]".`
             etymology,
             mnemonicTrick,
             commonMistakes: JSON.stringify(commonMistakes || []),
-            relatedWords: JSON.stringify(relatedWords || [])
+            relatedWords: JSON.stringify(relatedWords || []),
           },
         });
 
@@ -131,14 +152,21 @@ If you cannot provide JSON, return an empty JSON array "[]".`
             data: (sentences || []).map((s: string, index: number) => ({
               wordId: newWord.id,
               text: s,
-              difficulty: index === 0 ? "beginner" : index === 1 ? "intermediate" : "advanced"
+              difficulty:
+                index === 0
+                  ? "intermediate"
+                  : index === 1
+                  ? "advanced"
+                  : "expert",
             })),
           }),
         ]);
       });
     }
 
-    console.log(`✅ Generated and stored ${wordsArray.length} new vocabulary words`);
+    console.log(
+      `✅ Generated and stored ${wordsArray.length} advanced vocabulary words`
+    );
   } catch (error) {
     console.error("Word generation error:", error);
     throw error;
@@ -146,28 +174,35 @@ If you cannot provide JSON, return an empty JSON array "[]".`
 };
 
 // Generate interactive quiz
-export const generateQuiz = async (type: string, difficulty: string, count: number): Promise<any> => {
+export const generateQuiz = async (
+  type: string,
+  difficulty: string,
+  count: number
+): Promise<any> => {
   try {
     const words = await prisma.word.findMany({
       where: { difficulty },
       include: {
         synonyms: true,
         antonyms: true,
-        sentences: true
+        sentences: true,
       },
       take: count * 2, // Get more words to create variety
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
     });
 
     const response = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are a quiz generator for English learning. Create engaging, educational quizzes."
+          content:
+            "You are a quiz generator for English learning. Create engaging, educational quizzes.",
         },
         {
           role: "user",
-          content: `Create a ${type} quiz with ${count} questions using these words: ${words.map(w => w.text).join(", ")}
+          content: `Create a ${type} quiz with ${count} questions using these words: ${words
+            .map((w) => w.text)
+            .join(", ")}
           
           Quiz types available:
           - multiple-choice: 4 options per question
@@ -184,8 +219,8 @@ export const generateQuiz = async (type: string, difficulty: string, count: numb
           - difficulty: question difficulty level
           - wordId: ID of the word being tested
           
-          Make questions challenging but fair. Return as JSON object with questions array.`
-        }
+          Make questions challenging but fair. Return as JSON object with questions array.`,
+        },
       ],
       model: GROQ_MODELS.main,
       temperature: 0.7,
@@ -204,8 +239,8 @@ export const generateQuiz = async (type: string, difficulty: string, count: numb
         type,
         difficulty,
         questions: JSON.stringify(quiz.questions),
-        createdAt: new Date()
-      }
+        createdAt: new Date(),
+      },
     });
 
     return { ...quiz, quizId: savedQuiz.id };
@@ -222,7 +257,8 @@ export const generateDailyQuote = async (): Promise<void> => {
       messages: [
         {
           role: "system",
-          content: "Generate an inspiring, educational quote about learning, growth, or knowledge."
+          content:
+            "Generate an inspiring, educational quote about learning, growth, or knowledge.",
         },
         {
           role: "user",
@@ -236,8 +272,8 @@ export const generateDailyQuote = async (): Promise<void> => {
           - explanation: brief explanation of the quote's meaning
           - relevanceToLearning: how this applies to language learning
           
-          Return as JSON object.`
-        }
+          Return as JSON object.`,
+        },
       ],
       model: GROQ_MODELS.creative,
       temperature: 0.9,
@@ -257,8 +293,8 @@ export const generateDailyQuote = async (): Promise<void> => {
         hindiTranslation: quoteData.hindiTranslation,
         gujaratiTranslation: quoteData.gujaratiTranslation,
         explanation: quoteData.explanation,
-        relevanceToLearning: quoteData.relevanceToLearning
-      }
+        relevanceToLearning: quoteData.relevanceToLearning,
+      },
     });
 
     console.log("✅ Generated daily quote");
@@ -270,7 +306,15 @@ export const generateDailyQuote = async (): Promise<void> => {
 // Generate educational fact of the day
 export const generateFactOfTheDay = async (): Promise<void> => {
   try {
-    const topics = ["science", "history", "technology", "nature", "space", "languages", "culture"];
+    const topics = [
+      "science",
+      "history",
+      "technology",
+      "nature",
+      "space",
+      "languages",
+      "culture",
+    ];
     const randomTopic = topics[Math.floor(Math.random() * topics.length)];
 
     const response = await groq.chat.completions.create({
@@ -288,8 +332,8 @@ export const generateFactOfTheDay = async (): Promise<void> => {
           - didYouKnow: additional related information
           - source: general source type (e.g., "Scientific Research", "Historical Records")
           
-          Make it engaging and educational. Return as JSON object.`
-        }
+          Make it engaging and educational. Return as JSON object.`,
+        },
       ],
       model: GROQ_MODELS.main,
       temperature: 0.8,
@@ -310,8 +354,8 @@ export const generateFactOfTheDay = async (): Promise<void> => {
         gujaratiTranslation: factData.gujaratiTranslation,
         explanation: factData.explanation,
         didYouKnow: factData.didYouKnow,
-        source: factData.source
-      }
+        source: factData.source,
+      },
     });
 
     console.log("✅ Generated fact of the day");
@@ -321,13 +365,18 @@ export const generateFactOfTheDay = async (): Promise<void> => {
 };
 
 // Generate educational story
-export const generateStory = async (theme: string, difficulty: string, wordsToInclude: string[]): Promise<any> => {
+export const generateStory = async (
+  theme: string,
+  difficulty: string,
+  wordsToInclude: string[]
+): Promise<any> => {
   try {
     const response = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are a creative writer specializing in educational stories for English learners."
+          content:
+            "You are a creative writer specializing in educational stories for English learners.",
         },
         {
           role: "user",
@@ -350,8 +399,8 @@ export const generateStory = async (theme: string, difficulty: string, wordsToIn
           - hindiSummary: brief Hindi summary
           - gujaratiSummary: brief Gujarati summary
           
-          Return as JSON object.`
-        }
+          Return as JSON object.`,
+        },
       ],
       model: GROQ_MODELS.creative,
       temperature: 0.8,
@@ -372,11 +421,15 @@ export const generateStory = async (theme: string, difficulty: string, wordsToIn
         theme,
         difficulty,
         moralLesson: storyData.moralLesson,
-        vocabularyHighlights: JSON.stringify(storyData.vocabularyHighlights || []),
-        comprehensionQuestions: JSON.stringify(storyData.comprehensionQuestions || []),
+        vocabularyHighlights: JSON.stringify(
+          storyData.vocabularyHighlights || []
+        ),
+        comprehensionQuestions: JSON.stringify(
+          storyData.comprehensionQuestions || []
+        ),
         hindiSummary: storyData.hindiSummary,
-        gujaratiSummary: storyData.gujaratiSummary
-      }
+        gujaratiSummary: storyData.gujaratiSummary,
+      },
     });
 
     return { ...storyData, storyId: savedStory.id };
@@ -387,13 +440,17 @@ export const generateStory = async (theme: string, difficulty: string, wordsToIn
 };
 
 // Generate grammar lesson
-export const generateGrammarLesson = async (topic: string, difficulty: string): Promise<any> => {
+export const generateGrammarLesson = async (
+  topic: string,
+  difficulty: string
+): Promise<any> => {
   try {
     const response = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are an expert English grammar teacher creating comprehensive lessons."
+          content:
+            "You are an expert English grammar teacher creating comprehensive lessons.",
         },
         {
           role: "user",
@@ -410,8 +467,8 @@ export const generateGrammarLesson = async (topic: string, difficulty: string): 
           - hindiExplanation: brief Hindi explanation
           - gujaratiExplanation: brief Gujarati explanation
           
-          Make it comprehensive but easy to understand. Return as JSON object.`
-        }
+          Make it comprehensive but easy to understand. Return as JSON object.`,
+        },
       ],
       model: GROQ_MODELS.main,
       temperature: 0.7,
@@ -437,8 +494,8 @@ export const generateGrammarLesson = async (topic: string, difficulty: string): 
         practiceExercises: JSON.stringify(lessonData.practiceExercises || []),
         tips: JSON.stringify(lessonData.tips || []),
         hindiExplanation: lessonData.hindiExplanation,
-        gujaratiExplanation: lessonData.gujaratiExplanation
-      }
+        gujaratiExplanation: lessonData.gujaratiExplanation,
+      },
     });
 
     return { ...lessonData, lessonId: savedLesson.id };
@@ -449,13 +506,16 @@ export const generateGrammarLesson = async (topic: string, difficulty: string): 
 };
 
 // Generate pronunciation guide
-export const generatePronunciationGuide = async (word: string): Promise<any> => {
+export const generatePronunciationGuide = async (
+  word: string
+): Promise<any> => {
   try {
     const response = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are a pronunciation expert helping English learners with correct pronunciation."
+          content:
+            "You are a pronunciation expert helping English learners with correct pronunciation.",
         },
         {
           role: "user",
@@ -472,8 +532,8 @@ export const generatePronunciationGuide = async (word: string): Promise<any> => 
           - practicePhrase: a phrase to practice the word in context
           - audioDescription: description of how to make each sound
           
-          Return as JSON object.`
-        }
+          Return as JSON object.`,
+        },
       ],
       model: GROQ_MODELS.main,
       temperature: 0.6,
@@ -497,8 +557,8 @@ export const generatePronunciationGuide = async (word: string): Promise<any> => 
         similarSounds: JSON.stringify(guideData.similarSounds || []),
         commonErrors: JSON.stringify(guideData.commonErrors || []),
         practicePhrase: guideData.practicePhrase,
-        audioDescription: guideData.audioDescription
-      }
+        audioDescription: guideData.audioDescription,
+      },
     });
 
     return { ...guideData, guideId: savedGuide.id };
@@ -514,25 +574,31 @@ export const searchWords = async (query: string): Promise<any[]> => {
     const words = await prisma.word.findMany({
       where: {
         OR: [
-          { text: { contains: query.toLowerCase(), mode: 'insensitive' } },
-          { meaningHindi: { contains: query, mode: 'insensitive' } },
-          { meaningGujarati: { contains: query, mode: 'insensitive' } },
-          { synonyms: { some: { text: { contains: query.toLowerCase(), mode: 'insensitive' } } } }
-        ]
+          { text: { contains: query.toLowerCase(), mode: "insensitive" } },
+          { meaningHindi: { contains: query, mode: "insensitive" } },
+          { meaningGujarati: { contains: query, mode: "insensitive" } },
+          {
+            synonyms: {
+              some: {
+                text: { contains: query.toLowerCase(), mode: "insensitive" },
+              },
+            },
+          },
+        ],
       },
       include: {
         synonyms: { select: { text: true } },
         antonyms: { select: { text: true } },
-        sentences: { select: { text: true, difficulty: true } }
+        sentences: { select: { text: true, difficulty: true } },
       },
-      take: 20
+      take: 20,
     });
 
-    return words.map(word => ({
+    return words.map((word) => ({
       ...word,
-      synonyms: word.synonyms.map(s => s.text),
-      antonyms: word.antonyms.map(a => a.text),
-      sentences: word.sentences
+      synonyms: word.synonyms.map((s) => s.text),
+      antonyms: word.antonyms.map((a) => a.text),
+      sentences: word.sentences,
     }));
   } catch (error) {
     console.error("Search error:", error);
@@ -541,7 +607,9 @@ export const searchWords = async (query: string): Promise<any[]> => {
 };
 
 // Generate word association game
-export const generateWordAssociation = async (difficulty: string): Promise<any> => {
+export const generateWordAssociation = async (
+  difficulty: string
+): Promise<any> => {
   try {
     const response = await groq.chat.completions.create({
       messages: [
@@ -557,8 +625,8 @@ export const generateWordAssociation = async (difficulty: string): Promise<any> 
           - gameInstructions: how to play the association game
           - scoringSystem: how to score the game
           
-          Return as JSON object.`
-        }
+          Return as JSON object.`,
+        },
       ],
       model: GROQ_MODELS.main,
       temperature: 0.8,
@@ -595,8 +663,8 @@ export const generateIdioms = async (count: number = 10): Promise<void> => {
           - difficulty: beginner/intermediate/advanced
           - category: type of idiom (business, casual, literary, etc.)
           
-          Return as JSON array.`
-        }
+          Return as JSON array.`,
+        },
       ],
       model: GROQ_MODELS.main,
       temperature: 0.8,
@@ -610,10 +678,10 @@ export const generateIdioms = async (count: number = 10): Promise<void> => {
     const idiomsArray = JSON.parse(content);
 
     for (const idiomData of idiomsArray) {
-      const existing = await prisma.idiom.findUnique({ 
-        where: { text: idiomData.idiom.toLowerCase() } 
+      const existing = await prisma.idiom.findUnique({
+        where: { text: idiomData.idiom.toLowerCase() },
       });
-      
+
       if (!existing) {
         await prisma.idiom.create({
           data: {
@@ -624,8 +692,8 @@ export const generateIdioms = async (count: number = 10): Promise<void> => {
             examples: JSON.stringify(idiomData.examples || []),
             origin: idiomData.origin,
             difficulty: idiomData.difficulty,
-            category: idiomData.category
-          }
+            category: idiomData.category,
+          },
         });
       }
     }
@@ -645,15 +713,15 @@ export const cleanupOldData = async (): Promise<void> => {
     // Clean up old daily quotes (keep only last 30 days)
     await prisma.dailyQuote.deleteMany({
       where: {
-        createdAt: { lt: thirtyDaysAgo }
-      }
+        createdAt: { lt: thirtyDaysAgo },
+      },
     });
 
     // Clean up old facts (keep only last 30 days)
     await prisma.factOfTheDay.deleteMany({
       where: {
-        createdAt: { lt: thirtyDaysAgo }
-      }
+        createdAt: { lt: thirtyDaysAgo },
+      },
     });
 
     // Clean up anonymous quiz results older than 7 days
@@ -663,8 +731,8 @@ export const cleanupOldData = async (): Promise<void> => {
     await prisma.quizResult.deleteMany({
       where: {
         userId: "anonymous",
-        completedAt: { lt: sevenDaysAgo }
-      }
+        completedAt: { lt: sevenDaysAgo },
+      },
     });
 
     console.log("✅ Completed data cleanup");
@@ -674,7 +742,9 @@ export const cleanupOldData = async (): Promise<void> => {
 };
 
 // Generate conversation starters
-export const generateConversationStarters = async (difficulty: string): Promise<any> => {
+export const generateConversationStarters = async (
+  difficulty: string
+): Promise<any> => {
   try {
     const response = await groq.chat.completions.create({
       messages: [
@@ -689,8 +759,8 @@ export const generateConversationStarters = async (difficulty: string): Promise<
           - culturalTips: cultural context for conversations
           - practiceScenarios: role-play scenarios
           
-          Make them practical and engaging. Return as JSON object.`
-        }
+          Make them practical and engaging. Return as JSON object.`,
+        },
       ],
       model: GROQ_MODELS.main,
       temperature: 0.8,
