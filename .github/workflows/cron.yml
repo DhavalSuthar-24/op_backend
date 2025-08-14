@@ -1,0 +1,23 @@
+name: Daily Cron Trigger
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # Runs daily at midnight UTC
+  workflow_dispatch: # Manual trigger from GitHub UI
+
+jobs:
+  trigger-cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call generate-words endpoint
+        run: |
+          curl -X POST \
+            'https://op-backend-three.vercel.app/admin/generate-words' \
+            -H 'accept: application/json' \
+            -d ''
+      - name: Call generate-daily-content endpoint
+        run: |
+          curl -X POST \
+            'https://op-backend-three.vercel.app/admin/generate-daily-content' \
+            -H 'accept: application/json' \
+            -d ''
